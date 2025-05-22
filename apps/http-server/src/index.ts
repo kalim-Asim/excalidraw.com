@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import { JWT_SECRET } from "@repo/backend-common/config";
 import { middleware } from "./middleware";
 import {createUserSchema, SigninSchema, createRoomSchema} from "@repo/common/types";
+import {db} from "@repo/db/db";
 const app = express();
 
 app.post("/signup", (req, res) => {

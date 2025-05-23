@@ -4,7 +4,7 @@ import { JWT_SECRET } from "@repo/backend-common/config";
 import { middleware } from "./middleware";
 import {createUserSchema, SigninSchema, createRoomSchema} from "@repo/common/types";
 import {prismaClient} from "@repo/db/client";
-import { bcrypt } from "bcrypt";
+import bcrypt from "bcrypt";
 import { Request, Response } from "express";
 
 interface User {
@@ -52,7 +52,7 @@ app.post("/signup", async (req : Request, res : Response) => {
   }
 });
 
-app.post("/signin", async (req, res) => {
+app.post("/signin", async (req : Request, res : Response) => {
   const data = SigninSchema.safeParse(req.body);
   if (!data.success) {
     res.json({
@@ -66,7 +66,6 @@ app.post("/signin", async (req, res) => {
     const user = await prismaClient.user.findFirst({
       where: {
         email: email,
-        password
       }
     });
     if (!user) {
@@ -76,14 +75,14 @@ app.post("/signin", async (req, res) => {
       return;
     }
     
-    bcrypt.compare(password, user.password, (compareErr: Error | null, isMatch: boolean) => {
-      if (compareErr || !isMatch) {
+    bcrypt.compare(password, user.password, (err: Error | undefined, same: boolean) => {
+      if (err || !same) {
         return (res as Response).status(401).json({ 
           success: false, 
           message: "Invalid credentials" 
         });
       }
-      // Passwords match, proceed with authentication
+      //password is correct
       const token = jwt.sign({ 
         userId: user.id 
       }, JWT_SECRET);
@@ -100,8 +99,33 @@ app.post("/signin", async (req, res) => {
   }
 });
 
-app.post("/room", middleware, (req, res) => {
+app.post("/room", middleware, async (req, res) => {
+  const data = createRoomSchema.safeParse(req.body);
+  if (!data.success) {
+    res.json({
+      message: "Invalid data", 
+    })
+    return;
+  }
+  const userId = (req as any).userId; //middleware adds userId to request
+  const { slug } = data.data;
+  try {
+    const room = await prismaClient.room.create({
+      data: {
+        slug: slug,
+        adminId: userId
+      }
+    });
 
+    res.json({
+      roomId: room.id
+    });
+  } catch(err) {
+    res.json({
+      message: "Room already exists",
+    });
+    return;
+  }
 });
 
 app.listen(5000, (err) => {

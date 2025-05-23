@@ -3,10 +3,11 @@ import jwt from "jsonwebtoken";
 import { JWT_SECRET } from "@repo/backend-common/config";
 import { middleware } from "./middleware";
 import {createUserSchema, SigninSchema, createRoomSchema} from "@repo/common/types";
-import {db} from "@repo/db/db";
+import {prismaClient} from "@repo/db/client";
+import {bcrypt} from "bcrypt";
 const app = express();
-
-app.post("/signup", (req, res) => {
+app.use(express.json());
+app.post("/signup", async (req, res) => {
   const data = createUserSchema.safeParse(req.body);
   if (!data.success) {
     res.json({
@@ -14,11 +15,65 @@ app.post("/signup", (req, res) => {
     })
     return;
   }
-  const { username, password, name } = data.data;
+  const { email, username, password } = data.data;
+  try {
+    const user = await prismaClient.user.create({
+      data: {
+        email,
+        username,
+        password
+      }
+    });
+
+    res.json({
+      userId: user.id
+    });
+  }
+  catch(err) {
+    res.json({
+      message: "User already exists",
+    });
+    return;
+  }
 });
 
-app.post("/login", (req, res) => {
-  
+app.post("/signin", async (req, res) => {
+  const data = SigninSchema.safeParse(req.body);
+  if (!data.success) {
+    res.json({
+      message: "Invalid data", 
+    })
+    return;
+  }
+  const { email, password } = data.data;
+  try {
+    const user = await prismaClient.user.findFirst({
+      where: {
+        email: email,
+        password
+      }
+    });
+    if (!user) {
+      res.json({
+        message: "User not found",
+      });
+      return;
+    }
+
+    const token = jwt.sign({ 
+      userId: user.id 
+    }, JWT_SECRET);
+
+    res.json({
+      token
+    });
+  }
+  catch(err) {
+    res.json({
+      message: "User already exists",
+    });
+    return;
+  }
 });
 
 app.post("/room", middleware, (req, res) => {

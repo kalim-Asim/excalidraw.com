@@ -4,10 +4,24 @@ import { JWT_SECRET } from "@repo/backend-common/config";
 import { middleware } from "./middleware";
 import {createUserSchema, SigninSchema, createRoomSchema} from "@repo/common/types";
 import {prismaClient} from "@repo/db/client";
-import {bcrypt} from "bcrypt";
+import { bcrypt } from "bcrypt";
+import { Request, Response } from "express";
+
+interface User {
+  id: String;
+  email: string;
+  username: string;
+  password: string;
+}
+
+interface JwtPayload {
+  userId: number;
+}
+
 const app = express();
 app.use(express.json());
-app.post("/signup", async (req, res) => {
+
+app.post("/signup", async (req : Request, res : Response) => {
   const data = createUserSchema.safeParse(req.body);
   if (!data.success) {
     res.json({
@@ -16,12 +30,13 @@ app.post("/signup", async (req, res) => {
     return;
   }
   const { email, username, password } = data.data;
+  const hashedPassword = await bcrypt.hash(password, 10);
   try {
     const user = await prismaClient.user.create({
       data: {
-        email,
-        username,
-        password
+        email: email,
+        username: username,
+        password: hashedPassword
       }
     });
 
@@ -46,6 +61,7 @@ app.post("/signin", async (req, res) => {
     return;
   }
   const { email, password } = data.data;
+  
   try {
     const user = await prismaClient.user.findFirst({
       where: {
@@ -59,16 +75,24 @@ app.post("/signin", async (req, res) => {
       });
       return;
     }
-
-    const token = jwt.sign({ 
-      userId: user.id 
-    }, JWT_SECRET);
-
-    res.json({
-      token
-    });
-  }
-  catch(err) {
+    
+    bcrypt.compare(password, user.password, (compareErr: Error | null, isMatch: boolean) => {
+      if (compareErr || !isMatch) {
+        return (res as Response).status(401).json({ 
+          success: false, 
+          message: "Invalid credentials" 
+        });
+      }
+      // Passwords match, proceed with authentication
+      const token = jwt.sign({ 
+        userId: user.id 
+      }, JWT_SECRET);
+      
+      res.json({
+        token
+      });
+  });
+  } catch(err) {
     res.json({
       message: "User already exists",
     });

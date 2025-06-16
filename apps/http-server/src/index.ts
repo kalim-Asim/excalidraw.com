@@ -29,6 +29,7 @@ app.post("/signup", async (req : Request, res : Response) => {
     })
     return;
   }
+
   const { email, username, password } = data.data;
   const hashedPassword = await bcrypt.hash(password, 10);
   try {
@@ -126,6 +127,37 @@ app.post("/room", middleware, async (req, res) => {
     });
     return;
   }
+});
+
+app.get("/chats/:roomId", middleware, async (req, res) => {
+  const roomId = Number(req.params.roomId);
+  const userId = (req as any).userId;
+  
+  const chats = await prismaClient.chat.findMany({
+    where: {
+      roomId: roomId
+    },
+    orderBy: {
+      id: "desc"
+    },
+    take: 50 // top ke 50 messages
+  });
+  res.json({
+    chats: chats
+  });
+});
+
+app.get("/room/:slug", middleware, async (req, res) => {
+  const slug = req.params.slug;
+
+  const room = await prismaClient.room.findFirst({
+    where: {
+      slug: slug
+    }
+  });
+  res.json({
+    room
+  });
 });
 
 app.listen(5000, (err) => {
